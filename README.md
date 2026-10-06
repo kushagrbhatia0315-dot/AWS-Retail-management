@@ -1,7 +1,7 @@
 # 🚀 Usage & Judge Evaluation (Google Colab)
 
 Open a blank Google Colab Notebook (https://colab.research.google.com/) and run this all-in-one cell to download the code, train the LightGBM Quantile models, run the inventory cost simulation in ₹, and expose the FastAPI Swagger UI to the web via Cloudflare Tunnel:
-
+```
 # 1. Clone Repo & Install Dependencies
 !rm -rf /content/AWS-Retail-management
 !git clone https://github.com/kushagrbhatia0315-dot/AWS-Retail-management.git
@@ -28,7 +28,7 @@ print("\n" + "=" * 55)
 print("🔗 CLICK BELOW TO VIEW THE INTERACTIVE API & SWAGGER DOCS:")
 !grep -o 'https://.*\.trycloudflare.com' /content/tunnel.txt | head -n 1 | awk '{print $1 "/docs"}'
 print("=" * 55 + "\n")
-
+```
 ---
 
 # AWS Retail Management
@@ -50,7 +50,7 @@ AWS Retail Management is a demand forecasting and inventory replenishment pipeli
 
 ## Project Layout
 
-.
+```text
 ├── data/
 │   ├── processed/      Cached feature artifacts
 │   └── raw/            Raw sales datasets (train.csv)
@@ -74,7 +74,7 @@ AWS Retail Management is a demand forecasting and inventory replenishment pipeli
 ├── requirements.txt
 ├── run_pipeline.py     End-to-end execution pipeline
 └── README.md
-
+```
 ## Requirements
 
 - Python 3.10 or newer
