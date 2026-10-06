@@ -1,47 +1,59 @@
-# AWS Retail Management: Demand Forecasting with Uncertainty Quantification
+# AWS Retail Management: Demand Forecasting with Uncertainty Quantification (UQ)
 
-Probabilistic retail demand forecasting pipeline that produces calibrated prediction intervals (10th, 50th, and 90th quantiles) to balance asymmetric stockout and holding costs in Indian Rupees (₹).
+A production-grade retail demand forecasting and inventory replenishment pipeline that moves beyond single-point predictions. This repository implements **probabilistic quantile gradient boosting** to produce well-calibrated prediction intervals (10th, 50th, and 90th percentiles), directly optimizing real-world inventory cost trade-offs under asymmetric loss in Indian Rupees (₹).
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688.svg?logo=fastapi&logoColor=white)](http://127.0.0.1:8000/docs)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+Includes an interactive **FastAPI** microservice serving inference diagnostics and decision analytics via JSON endpoints.
 
 ---
 
-## Overview
-
-Single point forecasts hide operational risk. Overstocking costs inventory holding fees ($c_o$), while stockouts forfeit customer goodwill and direct revenue ($c_u$). When $c_u \gg c_o$, optimal replenishment must target higher quantiles rather than simple expected averages.
-
-This repository implements:
-- **Feature Engineering:** Leak-free rolling aggregations, lag features past operational lead times, and cyclical calendar dynamics.
-- **Quantile Gradient Boosting:** LightGBM regressors trained under pinball/quantile loss ($\alpha \in \{0.10, 0.50, 0.90\}$) with post-hoc monotonic sorting.
-- **Baseline Benchmarking:** Standard MSE point forecast with Gaussian residual prediction bands.
-- **Financial Inventory Simulation:** Asymmetric stockout vs. holding cost trade-offs evaluated in Indian Rupees (₹).
-- **Overconfidence Diagnostics:** Automated detection of interval breakdown during demand spikes.
-- **FastAPI JSON Engine:** Ready-to-serve REST API exposing calibration and financial simulation outputs with full Swagger documentation.
+## Table of Contents
+- [Business Problem & Objective](#business-problem--objective)
+- [System Architecture & Methodology](#system-architecture--methodology)
+- [Project Directory Structure](#project-directory-structure)
+- [Quickstart: Running via Google Colab](#quickstart-running-via-google-colab-recommended)
+- [Local Installation & Setup](#local-installation--setup)
+- [Execution & Verification](#execution--verification)
+- [FastAPI Microservice & Documentation](#fastapi-microservice--documentation)
+- [Financial Cost & Calibration Analysis](#financial-cost--calibration-analysis)
+- [Diagnostics: Overconfidence & Heteroscedasticity](#diagnostics-overconfidence--heteroscedasticity)
 
 ---
 
-## Project Structure
+## Business Problem & Objective
+
+Traditional supply chain forecasting models predict only the conditional mean or median:
+$$\mathbb{E}[Y \vert{} X]$$
+
+In retail inventory planning, uncertainty is non-symmetric:
+* **Understocking (Stockouts):** Causes lost sales revenue, unfulfilled demand, and permanent customer churn. Unit cost: $c_u$.
+* **Overstocking (Holding Costs):** Causes tied-up working capital, shelf-space consumption, and spoilage/depreciation. Unit cost: $c_o$.
+
+When the cost of a stockout is substantially higher than the cost of holding excess stock ($c_u \gg c_o$), ordering at the point forecast ($q_{50}$) guarantees a ~50% stockout risk. 
+
+**Core Objectives:**
+1. Generate calibrated non-crossing prediction intervals ($q_{10}, q_{50}, q_{90}$) using LightGBM with Pinball/Quantile Loss.
+2. Formulate an inventory safety-stock policy using the 90th percentile to minimize asymmetric financial losses (in ₹).
+3. Benchmark against classical Gaussian residual bands ($1.282\sigma$).
+4. Diagnose model overconfidence around demand spikes and promotional bursts.
+
+---
+
+## System Architecture & Methodology
 
 ```text
-├── data/
-│   ├── processed/      # Cached, feature-engineered artifacts
-│   └── raw/            # Raw sales data (train.csv)
-├── docs/
-│   └── writeup.md      # Methodological details & decision analysis
-├── notebooks/
-│   └── 01_demand_forecasting_uq.ipynb
-├── src/
-│   ├── app.py          # FastAPI web service
-│   ├── config.py       # Cost constants (₹) and global hyperparams
-│   ├── evaluation.py   # PICP calibration & pinball loss calculations
-│   ├── features.py     # Leak-free time-series transformations
-│   ├── inventory.py    # Cost simulator for holding vs stockout risk
-│   └── models.py       # Quantile LightGBM & monotonic interval enforcement
-├── tests/
-│   ├── test_features.py
-│   └── test_inventory.py
-├── README.md
-├── requirements.txt
-└── run_pipeline.py     # Execution entry point
+[ Raw Data / Kaggle / Synthetic ]
+               │
+               ▼
+   [ Leak-Free Feature Pipeline ] ──> Lags (past lead-time L=7), Rolling Stats, Fourier/Cyclical Calendar
+               │
+               ▼
+    [ Quantile LightGBM Models ] ──> α ∈ {0.10, 0.50, 0.90} via Pinball Loss
+               │
+               ▼
+ [ Monotonic Boundary Enforcement ] ──> Clip negatives & guarantee: 0 ≤ q10 ≤ q50 ≤ q90
+               │
+               ▼
+   [ Asymmetric Cost Simulator ] ──> Compute Stockout vs Holding Costs in ₹ (INR)
+               │
+               ▼
+      [ FastAPI JSON Engine ] ────> REST Endpoints (/docs, /pipeline/all, /pipeline/inventory-costs)
