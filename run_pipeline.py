@@ -5,6 +5,7 @@ from src.features import build_features
 from src.models import train_quantile_models, train_point_baseline, enforce_monotonic_quantiles
 from src.evaluation import evaluate_intervals, analyze_overconfidence
 from src.inventory import simulate_inventory_costs
+
 def load_or_generate_data():
     csv_file = DATA_RAW / "train.csv"
     if csv_file.exists():
@@ -13,6 +14,7 @@ def load_or_generate_data():
         if "sales" not in df.columns and "demand" in df.columns:
             df = df.rename(columns={"demand": "sales"})
         return df
+
     print("[INFO] No data/raw/train.csv found. Generating synthetic multi-store retail data...")
     dates = pd.date_range("2022-01-01", "2024-12-31", freq="D")
     records = []
@@ -28,25 +30,30 @@ def load_or_generate_data():
             for d, s in zip(dates, sales):
                 records.append({"date": d, "store": store, "item": item, "sales": s})
     return pd.DataFrame(records)
-def main():
+
+def execute_pipeline():
     raw_df = load_or_generate_data()
-    print("[INFO] Building leak-free features...")
     df = build_features(raw_df, target_col="sales", lead_time=LEAD_TIME)
     df = df.dropna().reset_index(drop=True)
+
     train_end = "2024-04-01"
     val_end = "2024-08-01"
+
     train_df = df[df["date"] < train_end]
     val_df = df[(df["date"] >= train_end) & (df["date"] < val_end)]
     test_df = df[df["date"] >= val_end].copy()
+
     drop_cols = ["date", "store", "item", "sales"]
     feature_cols = [c for c in df.columns if c not in drop_cols]
-    print("[INFO] Training LightGBM Quantile Regressors (q10, q50, q90)...")
+
+    # Quantile models
     q_models = train_quantile_models(train_df, train_df["sales"], val_df, val_df["sales"], feature_cols, QUANTILES)
     raw_q10 = q_models[0.10].predict(test_df[feature_cols])
     raw_q50 = q_models[0.50].predict(test_df[feature_cols])
     raw_q90 = q_models[0.90].predict(test_df[feature_cols])
     q10, q50, q90 = enforce_monotonic_quantiles(raw_q10, raw_q50, raw_q90)
-    print("[INFO] Training Baseline Point Model (MSE) with Residual Intervals...")
+
+    # Baseline model
     point_model = train_point_baseline(train_df, train_df["sales"], feature_cols)
     val_resid = val_df["sales"] - point_model.predict(val_df[feature_cols])
     sigma_val = np.std(val_resid)
@@ -54,17 +61,28 @@ def main():
     base_q10 = np.clip(test_preds - 1.282 * sigma_val, 0, None)
     base_q90 = np.clip(test_preds + 1.282 * sigma_val, 0, None)
     y_test = test_df["sales"].values
+    return {
+        "calibration": {
+            "quantile_lightgbm": evaluate_intervals(y_test, q10, q50, q90),
+            "gaussian_baseline": evaluate_intervals(y_test, base_q10, test_preds, base_q90)
+        },
+        "inventory_decision_costs": {
+            "point_forecast_median_q50": simulate_inventory_costs(y_test, q50, UNIT_STOCKOUT_COST, UNIT_HOLDING_COST),
+            "gaussian_residual_safety_buffer": simulate_inventory_costs(y_test, base_q90, UNIT_STOCKOUT_COST, UNIT_HOLDING_COST),
+            "quantile_q90_buffer_policy": simulate_inventory_costs(y_test, q90, UNIT_STOCKOUT_COST, UNIT_HOLDING_COST)
+        },
+        "overconfidence_diagnostics": analyze_overconfidence(test_df, y_test, q10, q90)
+    }
+def main():
+    results = execute_pipeline()
     print("\n" + "=" * 25 + " 1. INTERVAL CALIBRATION " + "=" * 25)
-    print("Quantile LightGBM: ", evaluate_intervals(y_test, q10, q50, q90))
-    print("Gaussian Baseline: ", evaluate_intervals(y_test, base_q10, test_preds, base_q90))
+    print("Quantile LightGBM: ", results["calibration"]["quantile_lightgbm"])
+    print("Gaussian Baseline: ", results["calibration"]["gaussian_baseline"])
     print("\n" + "=" * 25 + " 2. INVENTORY DECISION COSTS " + "=" * 25)
-    cost_point = simulate_inventory_costs(y_test, q50, UNIT_STOCKOUT_COST, UNIT_HOLDING_COST)
-    cost_gauss = simulate_inventory_costs(y_test, base_q90, UNIT_STOCKOUT_COST, UNIT_HOLDING_COST)
-    cost_q90 = simulate_inventory_costs(y_test, q90, UNIT_STOCKOUT_COST, UNIT_HOLDING_COST)
-    print("Policy 1: Point Forecast (Median / q50):  ", cost_point)
-    print("Policy 2: Gaussian Residual Safety Buffer:", cost_gauss)
-    print("Policy 3: Quantile q90 Buffer Policy:    ", cost_q90)
+    print("Policy 1: Point Forecast (Median / q50):  ", results["inventory_decision_costs"]["point_forecast_median_q50"])
+    print("Policy 2: Gaussian Residual Safety Buffer:", results["inventory_decision_costs"]["gaussian_residual_safety_buffer"])
+    print("Policy 3: Quantile q90 Buffer Policy:    ", results["inventory_decision_costs"]["quantile_q90_buffer_policy"])
     print("\n" + "=" * 25 + " 3. OVERCONFIDENCE DIAGNOSTICS " + "=" * 25)
-    print(analyze_overconfidence(test_df, y_test, q10, q90))
+    print(results["overconfidence_diagnostics"])
 if __name__ == "__main__":
     main()

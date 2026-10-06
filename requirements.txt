@@ -7,3 +7,5 @@ matplotlib
 seaborn
 pytest
 joblib
+fastapi
+uvicorn

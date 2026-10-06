@@ -7,8 +7,8 @@ def simulate_inventory_costs(y_true, order_levels, cu=12.00, co=1.33):
     total_cost = stockout_cost + holding_cost
     service_level = np.mean(order_levels >= y_true)
     return {
-        "Total Cost ($)": round(float(total_cost), 2),
-        "Stockout Cost ($)": round(float(stockout_cost), 2),
-        "Holding Cost ($)": round(float(holding_cost), 2),
+        "Total Cost (₹)": round(float(total_cost), 2),
+        "Stockout Cost (₹)": round(float(stockout_cost), 2),
+        "Holding Cost (₹)": round(float(holding_cost), 2),
         "Fill Rate / Service Level": round(float(service_level), 4)
     }
