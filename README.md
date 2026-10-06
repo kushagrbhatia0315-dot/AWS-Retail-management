@@ -77,36 +77,57 @@ fastapi
 uvicorn
 pytest
 
-## Dataset Configuration
+## Dataset Configuration & Exact Kaggle Source
 
 ### Automatic Synthetic Fallback (Zero Setup)
 
 If data/raw/train.csv is not present, run_pipeline.py automatically generates a multi-store, multi-item retail sales history containing trends, day-of-week seasonality, Poisson noise, and promotional spikes. You do not need to download external data to run the pipeline out-of-the-box.
 
-### Using Real Kaggle Data
+### Exact Kaggle Dataset: Store Item Demand Forecasting Challenge
 
-To train against Kaggle's Store Item Demand dataset (demand-forecasting-kernels-only):
+The official dataset supported by this repository is the Kaggle competition:
+Competition Name: Store Item Demand Forecasting Challenge
+Kaggle URL: https://www.kaggle.com/c/demand-forecasting-kernels-only/data
+Competition Slug: demand-forecasting-kernels-only
+Target Data File: train.csv (5 years of daily store-item sales data)
 
-1. Download the dataset from Kaggle.
-2. Extract train.csv.
-3. Place train.csv inside data/raw/:
+Download and place the exact file using either method:
 
+Method 1: Using Kaggle CLI
+pip install kaggle
+kaggle competitions download -c demand-forecasting-kernels-only
+unzip demand-forecasting-kernels-only.zip -d data/raw/
+unzip data/raw/train.csv.zip -d data/raw/
+
+Method 2: Manual Download
+1. Visit https://www.kaggle.com/c/demand-forecasting-kernels-only/data
+2. Download train.csv
+3. Run the following terminal commands to move it into place:
 mkdir -p data/raw
-mv /path/to/downloaded/train.csv data/raw/train.csv
+mv ~/Downloads/train.csv data/raw/train.csv
 
-The pipeline detects the file and automatically trains on the real sales data.
+Alternative Dataset Option:
+M5 Forecasting - Accuracy (Walmart): https://www.kaggle.com/c/m5-forecasting-accuracy
+If using M5, ensure the file is mapped and saved as data/raw/train.csv with columns: date, store, item, sales.
 
 ## Running in Google Colab
 
-To run the entire pipeline with cloud resources:
+To run the entire pipeline with cloud resources and download the Kaggle dataset directly:
 
 1. Open Google Colab (https://colab.research.google.com/).
 2. Create a new notebook.
-3. In the first code cell, clone and install dependencies:
+3. In the first code cell, clone, install dependencies, and download Kaggle data:
 
 !git clone https://github.com/kushagrbhatia0315-dot/AWS-Retail-management.git
 %cd AWS-Retail-management
 !pip install -r requirements.txt
+
+# (Optional: If downloading Kaggle dataset directly in Colab)
+# Upload your kaggle.json to Colab file system, then execute:
+!mkdir -p ~/.kaggle && cp /content/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json
+!kaggle competitions download -c demand-forecasting-kernels-only
+!unzip -o demand-forecasting-kernels-only.zip -d data/raw/
+!unzip -o data/raw/train.csv.zip -d data/raw/
 
 4. In the second code cell, execute the pipeline:
 
