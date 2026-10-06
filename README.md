@@ -1,3 +1,36 @@
+# 🚀 Usage & Judge Evaluation (Google Colab)
+
+Open a blank Google Colab Notebook (https://colab.research.google.com/) and run this all-in-one cell to download the code, train the LightGBM Quantile models, run the inventory cost simulation in ₹, and expose the FastAPI Swagger UI to the web via Cloudflare Tunnel:
+
+# 1. Clone Repo & Install Dependencies
+!rm -rf /content/AWS-Retail-management
+!git clone https://github.com/kushagrbhatia0315-dot/AWS-Retail-management.git
+%cd /content/AWS-Retail-management
+!pip install -r requirements.txt
+
+# 2. Run the Forecasting & Inventory Cost Pipeline
+!python run_pipeline.py
+
+# 3. Setup Cloudflare Tunnel (NO PASSWORD / TOKENS NEEDED)
+!wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+!chmod +x cloudflared-linux-amd64
+
+# 4. Start FastAPI Server in the Background
+import os, time
+os.system("nohup python -m uvicorn src.app:app --host 127.0.0.1 --port 8000 > /content/fastapi.log 2>&1 &")
+time.sleep(3)
+
+# 5. Launch Cloudflare Tunnel & Print Public Swagger UI Link
+!nohup ./cloudflared-linux-amd64 tunnel --url http://127.0.0.1:8000 > /content/tunnel.txt 2>&1 &
+time.sleep(5)
+
+print("\n" + "=" * 55)
+print("🔗 CLICK BELOW TO VIEW THE INTERACTIVE API & SWAGGER DOCS:")
+!grep -o 'https://.*\.trycloudflare.com' /content/tunnel.txt | head -n 1 | awk '{print $1 "/docs"}'
+print("=" * 55 + "\n")
+
+---
+
 # AWS Retail Management
 
 AWS Retail Management is a demand forecasting and inventory replenishment pipeline that produces calibrated prediction intervals (10th, 50th, and 90th percentiles) using Quantile LightGBM and evaluates financial inventory risk in Indian Rupees (₹).
@@ -12,6 +45,7 @@ AWS Retail Management is a demand forecasting and inventory replenishment pipeli
 - Overconfidence diagnostics identifying interval breakdown during demand spikes
 - FastAPI service serving prediction intervals and financial evaluation via JSON
 - Automatic synthetic data generator fallback when no raw data is present
+- Cloudflare Tunnel integration for zero-config public demo hosting in Google Colab
 - Unit tests validating lag leakage prevention and inventory math accuracy
 
 ## Project Layout
@@ -86,14 +120,13 @@ If data/raw/train.csv is not present, run_pipeline.py automatically generates a 
 ### Exact Kaggle Dataset: Store Item Demand Forecasting Challenge
 
 The official dataset supported by this repository is the Kaggle competition:
-Competition Name: Store Item Demand Forecasting Challenge
-Kaggle URL: https://www.kaggle.com/c/demand-forecasting-kernels-only/data
-Competition Slug: demand-forecasting-kernels-only
-Target Data File: train.csv (5 years of daily store-item sales data)
+- Competition Name: Store Item Demand Forecasting Challenge
+- Kaggle URL: https://www.kaggle.com/c/demand-forecasting-kernels-only/data
+- Target File: train.csv (5 years of daily store-item sales records)
 
-Download and place the exact file using either method:
+Download and place the file using either method:
 
-Method 1: Using Kaggle CLI
+Method 1: Kaggle CLI
 pip install kaggle
 kaggle competitions download -c demand-forecasting-kernels-only
 unzip demand-forecasting-kernels-only.zip -d data/raw/
@@ -106,33 +139,6 @@ Method 2: Manual Download
 mkdir -p data/raw
 mv ~/Downloads/train.csv data/raw/train.csv
 
-Alternative Dataset Option:
-M5 Forecasting - Accuracy (Walmart): https://www.kaggle.com/c/m5-forecasting-accuracy
-If using M5, ensure the file is mapped and saved as data/raw/train.csv with columns: date, store, item, sales.
-
-## Running in Google Colab
-
-To run the entire pipeline with cloud resources and download the Kaggle dataset directly:
-
-1. Open Google Colab (https://colab.research.google.com/).
-2. Create a new notebook.
-3. In the first code cell, clone, install dependencies, and download Kaggle data:
-
-!git clone https://github.com/kushagrbhatia0315-dot/AWS-Retail-management.git
-%cd AWS-Retail-management
-!pip install -r requirements.txt
-
-# (Optional: If downloading Kaggle dataset directly in Colab)
-# Upload your kaggle.json to Colab file system, then execute:
-!mkdir -p ~/.kaggle && cp /content/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json
-!kaggle competitions download -c demand-forecasting-kernels-only
-!unzip -o demand-forecasting-kernels-only.zip -d data/raw/
-!unzip -o data/raw/train.csv.zip -d data/raw/
-
-4. In the second code cell, execute the pipeline:
-
-!python run_pipeline.py
-
 ## Run the Application
 
 Run commands from the project root.
@@ -140,13 +146,11 @@ Run commands from the project root.
 ### 1. Run the ML Pipeline
 
 Trains the quantile regressors, evaluates interval calibration, and runs the cost comparison:
-
 python run_pipeline.py
 
 ### 2. Run the FastAPI Server
 
 Launch the web API to serve pipeline outputs and decision metrics via JSON:
-
 python -m uvicorn src.app:app --reload --host 127.0.0.1 --port 8000
 
 URLs:
@@ -158,7 +162,6 @@ URLs:
 ### 3. Run Automated Tests
 
 Run the test suite to verify leak-free lag engineering and cost calculations:
-
 pytest tests/ -v
 
 ## Inventory Cost Rules
@@ -186,11 +189,9 @@ Because stockouts are significantly more expensive than holding surplus (cu >> c
 ### ModuleNotFoundError: No module named 'run_pipeline'
 
 Ensure you run the FastAPI command with the project root as your working directory:
-
 python -m uvicorn src.app:app --reload --host 127.0.0.1 --port 8000
 
 Also verify that src/app.py includes the root directory in the Python path:
-
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -198,7 +199,6 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 ### Port 8000 already in use
 
 Run uvicorn on another port:
-
 python -m uvicorn src.app:app --reload --host 127.0.0.1 --port 8001
 
 Then open http://127.0.0.1:8001/docs.
@@ -210,7 +210,5 @@ This is standard behavior when running out-of-the-box. The pipeline automaticall
 ## Git Workflow
 
 To commit and push all modifications to GitHub:
-
 git add .
-git commit -m "docs: update README with setup, Colab guide, and API documentation"
-git push origin main
+git commit -m "docs: add Colab judge evaluation cell with Cloudflare tunnel and API docs"
