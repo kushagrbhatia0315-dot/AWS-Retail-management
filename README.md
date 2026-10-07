@@ -1,4 +1,4 @@
-# 🚀 Usage & Judge Evaluation (Google Colab)
+# 🚀 Usage (Google Colab)
 
 Open a blank Google Colab Notebook (https://colab.research.google.com/) and run this all-in-one cell to download the code, train the LightGBM Quantile models, run the inventory cost simulation in ₹, and expose the FastAPI Swagger UI to the web via Cloudflare Tunnel:
 ```python
