@@ -1,7 +1,7 @@
 # 🚀 Usage & Judge Evaluation (Google Colab)
 
 Open a blank Google Colab Notebook (https://colab.research.google.com/) and run this all-in-one cell to download the code, train the LightGBM Quantile models, run the inventory cost simulation in ₹, and expose the FastAPI Swagger UI to the web via Cloudflare Tunnel:
-```
+```python
 # 1. Clone Repo & Install Dependencies
 !rm -rf /content/AWS-Retail-management
 !git clone https://github.com/kushagrbhatia0315-dot/AWS-Retail-management.git
@@ -22,6 +22,60 @@ time.sleep(3)
 
 # 5. Launch Cloudflare Tunnel & Print Public Swagger UI Link
 !nohup ./cloudflared-linux-amd64 tunnel --url http://127.0.0.1:8000 > /content/tunnel.txt 2>&1 &
+time.sleep(5)
+
+print("\n" + "=" * 55)
+print("🔗 CLICK BELOW TO VIEW THE INTERACTIVE API & SWAGGER DOCS:")
+!grep -o 'https://.*\.trycloudflare.com' /content/tunnel.txt | head -n 1 | awk '{print $1 "/docs"}'
+print("=" * 55 + "\n")
+```
+
+### Optional Mode: Train on Real Kaggle Data
+
+If you want to train on real competition or dataset files instead of the synthetic generator:
+
+1. **Get your Kaggle API key**: On Kaggle, go to **Settings** $\rightarrow$ **API** $\rightarrow$ **Create New Token** (this downloads `kaggle.json`).
+2. **Upload `kaggle.json`**: Drag and drop it into the files tab on the left sidebar in Google Colab.
+3. **Map any Kaggle URL to the download command**:
+   - For a **Competition** URL like `https://www.kaggle.com/c/<competition-slug>/data`:
+     Use: `!kaggle competitions download -c <competition-slug>`
+   - For a general **Dataset** URL like `https://www.kaggle.com/datasets/<owner>/<dataset-name>`:
+     Use: `!kaggle datasets download -d <owner>/<dataset-name>`
+
+#### Pre-Configured Options (Copy & Run):
+
+**Option A: Store Item Demand Forecasting (Default & Recommended)**
+URL: `https://www.kaggle.com/c/demand-forecasting-kernels-only/data`
+
+```python
+# 1. Clone Repo & Install Dependencies
+!rm -rf /content/AWS-Retail-management
+!git clone [https://github.com/kushagrbhatia0315-dot/AWS-Retail-management.git](https://github.com/kushagrbhatia0315-dot/AWS-Retail-management.git)
+%cd /content/AWS-Retail-management
+!pip install -r requirements.txt
+
+# 2. Setup Kaggle credentials from uploaded token
+!mkdir -p ~/.kaggle && cp /content/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json
+
+# 3. Download and unpack train.csv directly into data/raw/
+!kaggle competitions download -c demand-forecasting-kernels-only
+!unzip -o demand-forecasting-kernels-only.zip -d data/raw/
+!unzip -o data/raw/train.csv.zip -d data/raw/
+
+# 4. Run pipeline on the real Kaggle dataset
+!python run_pipeline.py
+
+# 5. Setup Cloudflare Tunnel (NO PASSWORD / TOKENS NEEDED)
+!wget -q -nc [https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64](https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64)
+!chmod +x cloudflared-linux-amd64
+
+# 6. Start FastAPI Server in the Background
+import os, time
+os.system("nohup python -m uvicorn src.app:app --host 127.0.0.1 --port 8000 > /content/fastapi.log 2>&1 &")
+time.sleep(3)
+
+# 7. Launch Cloudflare Tunnel & Print Public Swagger UI Link
+!nohup ./cloudflared-linux-amd64 tunnel --url [http://127.0.0.1:8000](http://127.0.0.1:8000) > /content/tunnel.txt 2>&1 &
 time.sleep(5)
 
 print("\n" + "=" * 55)
